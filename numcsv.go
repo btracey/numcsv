@@ -144,3 +144,78 @@ func (r *Reader) ReadAll() (*mat64.Dense, error) {
 	}
 	return mat, nil
 }
+
+type Writer struct {
+	Comma        string
+	UseCRLF      bool
+	QuoteHeading bool // Put quotes around heading strings
+	FloatFmt     byte
+	w            *bufio.Writer
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		Comma:    ",",
+		w:        bufio.NewWriter(w),
+		FloatFmt: 'e',
+	}
+}
+
+func (w *Writer) WriteHeading(heading []string) (err error) {
+	for n, field := range heading {
+		if n > 0 {
+			if _, err = w.w.WriteString(w.Comma); err != nil {
+				return
+			}
+		}
+		if w.QuoteHeading {
+			field = "\"" + field + "\""
+		}
+		if _, err = w.w.WriteString(field); err != nil {
+			return
+		}
+	}
+	if w.UseCRLF {
+		_, err = w.w.WriteString("\r\n")
+	} else {
+		err = w.w.WriteByte('\n')
+	}
+	return err
+}
+
+func (w *Writer) Write(record []float64) error {
+	for n, field := range record {
+		if n > 0 {
+			if _, err := w.w.WriteString(w.Comma); err != nil {
+				return err
+			}
+		}
+		str := strconv.FormatFloat(field, w.FloatFmt, 16, 64)
+		if _, err := w.w.WriteString(str); err != nil {
+			return err
+		}
+	}
+	var err error
+	if w.UseCRLF {
+		_, err = w.w.WriteString("\r\n")
+	} else {
+		err = w.w.WriteByte('\n')
+	}
+	return err
+}
+
+func (w *Writer) WriteAll(headings []string, data *mat64.Dense) error {
+	if headings != nil {
+		if err := w.WriteHeading(headings); err != nil {
+			return err
+		}
+	}
+	r, _ := data.Dims()
+	for i := 0; i < r; i++ {
+		err := w.Write(data.RowView(i))
+		if err != nil {
+			return err
+		}
+	}
+	return w.w.Flush()
+}
