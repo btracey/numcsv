@@ -15,16 +15,16 @@ import (
 )
 
 type Reader struct {
-	Comma            string // field delimiter (set to ',' by NewReader)
-	HeadingComma     string // delimiter for the headings. If "", set to the same value as Comma
-	AllowEndingComma bool   // Allows there to be a single comma at the end of the field
-	Comment          string // comment character for start of line
-	FieldsPerRecord  int    // If preset, the number of expected fields. Set otherwise
-	NoHeading        bool
-	hasEndingComma   bool
-	reader           io.Reader
-	scanner          *bufio.Scanner
-	lineRead         bool // signifier that some of the
+	Comma        string // field delimiter (set to ',' by NewReader)
+	HeadingComma string // delimiter for the headings. If "", set to the same value as Comma
+	// AllowEndingComma bool   // Allows there to be a single comma at the end of the field
+	Comment         string // comment character for start of line
+	FieldsPerRecord int    // If preset, the number of expected fields. Set otherwise
+	NoHeading       bool
+	hasEndingComma  bool
+	reader          io.Reader
+	scanner         *bufio.Scanner
+	lineRead        bool // signifier that some of the
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -61,16 +61,14 @@ func (r *Reader) ReadHeading() (headings []string, err error) {
 	if comma == "" {
 		comma = r.Comma
 	}
-	headings = strings.Split(line, r.Comma)
-
-	// See if the last entry is blank
-	if headings[len(headings)-1] == "" {
-		if !r.AllowEndingComma {
-			return nil, ErrTrailingComma
+	strs := strings.Split(line, r.Comma)
+	for _, str := range strs {
+		str = strings.TrimSpace(str)
+		if len(str) != 0 {
+			headings = append(headings, str)
 		}
-		r.hasEndingComma = true
-		headings = headings[:len(headings)-1]
 	}
+
 	if r.FieldsPerRecord != 0 && len(headings) != r.FieldsPerRecord {
 		return nil, ErrFieldCount
 	}
@@ -94,9 +92,15 @@ func (r *Reader) Read() ([]float64, error) {
 		return nil, r.scanner.Err()
 	}
 	line := r.scanner.Text()
-	strs := strings.Split(line, r.Comma)
-	if strs[len(strs)-1] == "" {
-		strs = strs[:len(strs)-1]
+	allStrs := strings.Split(line, r.Comma)
+
+	strs := make([]string, 0, len(allStrs))
+	// Eliminate fields that are only whitespace
+	for _, str := range allStrs {
+		str = strings.TrimSpace(str)
+		if len(str) != 0 {
+			strs = append(strs, str)
+		}
 	}
 
 	if !r.lineRead {
@@ -126,6 +130,7 @@ func (r *Reader) Read() ([]float64, error) {
 // there are headings
 func (r *Reader) ReadAll() (*mat64.Dense, error) {
 	alldata := make([][]float64, 0)
+	count := 0
 	for {
 		data, err := r.Read()
 		if err != nil {
@@ -135,6 +140,7 @@ func (r *Reader) ReadAll() (*mat64.Dense, error) {
 			break
 		}
 		alldata = append(alldata, data)
+		count++
 	}
 	mat := mat64.NewDense(len(alldata), r.FieldsPerRecord, nil)
 	for i, record := range alldata {
