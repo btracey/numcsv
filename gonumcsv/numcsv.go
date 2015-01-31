@@ -1,8 +1,9 @@
-// package numcsv is for reading numeric csv files. It is more tolerant
-// of errors in formatting than the standard go encoding/csv files so it may be
+// package gonumcsv is for reading numeric csv files into a matrix and writing
+// csv files from a matrix. gonumcsv is more tolerant
+// of formatting errors than encoding/csv files so it may be
 // of help with "from the wild" csv files who don't follow normal csv rules
 
-package numcsv
+package gonumcsv
 
 import (
 	"bufio"
@@ -14,10 +15,11 @@ import (
 	"github.com/gonum/matrix/mat64"
 )
 
+// Reader reads in a csv file. Always ignores trailing comma
 type Reader struct {
-	Comma        string // field delimiter (set to ',' by NewReader)
-	HeadingComma string // delimiter for the headings. If "", set to the same value as Comma
-	// AllowEndingComma bool   // Allows there to be a single comma at the end of the field
+	Comma           rune   // field delimiter (set to ',' by NewReader)
+	HeadingComma    rune   // delimiter for the headings. If "", set to the same value as Comma
+	TrimWhitespace  bool   // trim whitespace around numbers and headers
 	Comment         string // comment character for start of line
 	FieldsPerRecord int    // If preset, the number of expected fields. Set otherwise
 	NoHeading       bool
@@ -218,7 +220,7 @@ func (w *Writer) WriteAll(headings []string, data *mat64.Dense) error {
 	}
 	r, _ := data.Dims()
 	for i := 0; i < r; i++ {
-		err := w.Write(data.RawRowView(i))
+		err := w.Write(data.RowView(i))
 		if err != nil {
 			return err
 		}
